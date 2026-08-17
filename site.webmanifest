@@ -1,0 +1,17 @@
+{
+  "name": "Dra. Camila Sandoval Maioli — Fisioterapia em São José do Rio Preto",
+  "short_name": "Dra. Camila Fisioterapia",
+  "description": "Fisioterapia em São José do Rio Preto - SP, com atendimento individualizado.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6d4aa6",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
