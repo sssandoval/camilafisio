@@ -1,7 +1,7 @@
 /*
  * Interações do site — vanilla JS, sem dependências externas.
  * Módulos: menu mobile, header ao rolar, scroll-reveal, lightbox da galeria,
- * validação do formulário de contato, ano dinâmico no rodapé.
+ * ano dinâmico no rodapé.
  */
 (function () {
   "use strict";
@@ -73,7 +73,7 @@
    * Scroll-reveal (IntersectionObserver)
    * --------------------------------------------------------------- */
   var revealTargets = document.querySelectorAll(
-    ".specialty-card, .diff-item, .testimonial-card, .gallery-item, .about-media, .about-content, .contact-info"
+    ".specialty-card, .diff-item, .testimonial-card, .gallery-item, .about-media, .about-content, .contact-card"
   );
 
   if (!prefersReducedMotion && "IntersectionObserver" in window && revealTargets.length) {
