@@ -15,43 +15,85 @@
   if (anoEl) anoEl.textContent = String(new Date().getFullYear());
 
   /* -----------------------------------------------------------------
-   * Barra de progresso de leitura + sombra do header ao rolar.
-   * Vanilla JS (sem depender do GSAP) para funcionar sempre, em PC e
-   * mobile, mesmo se os scripts do GSAP falharem ao carregar.
-   * Os dois efeitos escutam o mesmo evento "scroll", então são
-   * atualizados juntos num único rAF por frame em vez de dois
-   * listeners/leituras de scrollY independentes.
+   * Sombra do header ao rolar + sumário lateral (progresso de rolagem
+   * e seção atual). Vanilla JS (sem depender do GSAP) para funcionar
+   * sempre, em PC e mobile, mesmo se os scripts do GSAP falharem ao
+   * carregar. Os efeitos escutam o mesmo evento "scroll", então são
+   * atualizados juntos num único rAF por frame em vez de listeners/
+   * leituras de scrollY independentes.
+   *
+   * O sumário fica fixo na borda direita da tela (ver .side-toc no
+   * CSS): a barra mostra o progresso de leitura da página, e o rótulo
+   * mostra a seção em que o usuário está, aparecendo a cada rolagem e
+   * sumindo sozinho 1s depois de parar de rolar.
    * --------------------------------------------------------------- */
   (function initScrollEffects() {
-    var bar = document.getElementById("scroll-progress-bar");
     var header = document.querySelector(".site-header");
-    if (!bar && !header) return;
-    var ticking = false;
+    var tocFill = document.getElementById("side-toc-fill");
+    var tocLabel = document.getElementById("side-toc-label");
+    var sections = Array.prototype.slice.call(
+      document.querySelectorAll("main > section[data-toc-label]")
+    );
+    if (!header && !tocFill && !tocLabel) return;
 
-    function update() {
+    var ticking = false;
+    var hideTimer = null;
+    var lastLabel = tocLabel ? tocLabel.textContent : "";
+
+    function currentSectionLabel() {
+      if (!sections.length) return lastLabel;
+      var probe = window.innerHeight * 0.35;
+      var current = sections[0];
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].getBoundingClientRect().top <= probe) current = sections[i];
+      }
+      return current.getAttribute("data-toc-label") || lastLabel;
+    }
+
+    function revealLabel() {
+      if (!tocLabel) return;
+      tocLabel.classList.add("is-visible");
+      if (hideTimer) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(function () {
+        tocLabel.classList.remove("is-visible");
+      }, 1000);
+    }
+
+    function update(fromScroll) {
       ticking = false;
-      if (bar) {
+
+      if (tocFill) {
         var scrollable = document.documentElement.scrollHeight - window.innerHeight;
         var pct = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0;
-        bar.style.transform = "scaleX(" + pct.toFixed(4) + ")";
+        tocFill.style.height = (pct * 100).toFixed(2) + "%";
       }
+
+      if (tocLabel) {
+        var label = currentSectionLabel();
+        if (label !== lastLabel) {
+          lastLabel = label;
+          tocLabel.textContent = label;
+        }
+        if (fromScroll) revealLabel();
+      }
+
       if (header) {
         header.classList.toggle("is-scrolled", window.scrollY > 8);
       }
     }
 
-    update();
+    update(false);
     window.addEventListener(
       "scroll",
       function () {
         if (!ticking) {
           ticking = true;
-          requestAnimationFrame(update);
+          requestAnimationFrame(function () { update(true); });
         }
       },
       { passive: true }
     );
-    window.addEventListener("resize", update);
+    window.addEventListener("resize", function () { update(false); });
   })();
 
   /* -----------------------------------------------------------------
@@ -98,29 +140,35 @@
   }
 
   /* -----------------------------------------------------------------
-   * Hero Spotlight — glow radial que segue suavemente o cursor
-   * sobre a seção hero (posição em --spot-x / --spot-y, ver CSS).
+   * Cursor Glow — blur roxo que segue suavemente o ponteiro do mouse
+   * por cima de todo o site (não só na hero). Cria um elemento fixo
+   * único, atualizado via transform (translate3d) com suavização por
+   * interpolação, no mesmo espírito do antigo spotlight restrito à
+   * hero. Só roda em dispositivos com mouse (hover: hover) e sem
+   * prefers-reduced-motion.
    * --------------------------------------------------------------- */
-  (function initHeroSpotlight() {
-    var hero = document.querySelector(".hero");
-    if (!hero) return;
+  (function initCursorGlow() {
     if (prefersReducedMotion) return;
     if (window.matchMedia("(hover: none)").matches) return;
 
-    var target = { sx: 62, sy: 32 };
-    var current = { sx: 62, sy: 32 };
+    var glow = document.createElement("div");
+    glow.className = "cursor-glow";
+    glow.setAttribute("aria-hidden", "true");
+    document.body.insertBefore(glow, document.body.firstChild);
+
+    var target = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    var current = { x: target.x, y: target.y };
     var rafId = null;
 
-    function closeEnough(a, b) { return Math.abs(a - b) < 0.01; }
+    function closeEnough(a, b) { return Math.abs(a - b) < 0.5; }
 
     function render() {
-      current.sx += (target.sx - current.sx) * 0.12;
-      current.sy += (target.sy - current.sy) * 0.12;
+      current.x += (target.x - current.x) * 0.16;
+      current.y += (target.y - current.y) * 0.16;
 
-      hero.style.setProperty("--spot-x", current.sx.toFixed(1) + "%");
-      hero.style.setProperty("--spot-y", current.sy.toFixed(1) + "%");
+      glow.style.transform = "translate3d(" + current.x.toFixed(1) + "px, " + current.y.toFixed(1) + "px, 0)";
 
-      var settled = closeEnough(current.sx, target.sx) && closeEnough(current.sy, target.sy);
+      var settled = closeEnough(current.x, target.x) && closeEnough(current.y, target.y);
       rafId = settled ? null : requestAnimationFrame(render);
     }
 
@@ -128,24 +176,20 @@
       if (!rafId) rafId = requestAnimationFrame(render);
     }
 
-    function onMove(e) {
-      var rect = hero.getBoundingClientRect();
-      var relX = Math.max(-0.5, Math.min(0.5, (e.clientX - rect.left) / rect.width - 0.5));
-      var relY = Math.max(-0.5, Math.min(0.5, (e.clientY - rect.top) / rect.height - 0.5));
+    document.addEventListener(
+      "mousemove",
+      function (e) {
+        target.x = e.clientX;
+        target.y = e.clientY;
+        glow.classList.add("is-active");
+        schedule();
+      },
+      { passive: true }
+    );
 
-      target.sx = (relX + 0.5) * 100;
-      target.sy = (relY + 0.5) * 100;
-      schedule();
-    }
-
-    function onLeave() {
-      target.sx = 62;
-      target.sy = 32;
-      schedule();
-    }
-
-    hero.addEventListener("mousemove", onMove, { passive: true });
-    hero.addEventListener("mouseleave", onLeave, { passive: true });
+    document.documentElement.addEventListener("mouseleave", function () {
+      glow.classList.remove("is-active");
+    });
   })();
 
   /* -----------------------------------------------------------------
@@ -248,6 +292,28 @@
 
       var wordEl = container.querySelector(".rotating-text-word");
       if (!wordEl) return;
+
+      // Fixa a largura do container na palavra mais larga da sequência para
+      // que a troca de palavra nunca mude a largura do bloco e empurre o
+      // resto do título para outra linha (ex.: "melhorar" -> "evoluir").
+      function lockWidth() {
+        var probe = document.createElement("span");
+        probe.className = "rotating-text-word";
+        probe.style.position = "absolute";
+        probe.style.visibility = "hidden";
+        probe.style.whiteSpace = "nowrap";
+        probe.style.pointerEvents = "none";
+        container.appendChild(probe);
+        var max = 0;
+        sequence.forEach(function (w) {
+          probe.textContent = w;
+          max = Math.max(max, probe.offsetWidth);
+        });
+        container.removeChild(probe);
+        container.style.width = max + "px";
+      }
+      lockWidth();
+      window.addEventListener("resize", lockWidth);
 
       function buildChars(text) {
         wordEl.innerHTML = "";

@@ -259,24 +259,95 @@ textarea:focus-visible,
 }
 .btn-whatsapp:hover { background: #1eb857; transform: translateY(-2px); }
 
-/* -------------------------------------------------------------------------
-   4B. SCROLL PROGRESS BAR
-   ------------------------------------------------------------------------- */
-.scroll-progress {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  z-index: 600;
-  pointer-events: none;
-  background: transparent;
+/* Pulso contínuo no CTA principal da hero — mesmo padrão do botão flutuante
+   do WhatsApp (anel expandindo a partir do botão, em loop). */
+.btn-pulse {
+  position: relative;
+  z-index: 0;
 }
-.scroll-progress-bar {
-  display: block;
-  height: 100%;
+.btn-pulse::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--c-primary);
+  z-index: -1;
+  animation: btn-pulse-ring 2s ease-out infinite;
+}
+.btn-pulse:hover::before { animation-play-state: paused; opacity: 0; }
+@keyframes btn-pulse-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.14); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-pulse::before { animation: none; opacity: 0; }
+}
+
+/* -------------------------------------------------------------------------
+   4B. SUMÁRIO LATERAL (progresso de rolagem + seção atual)
+   Fica fixo na borda direita da tela, em vez do topo do header. A barra
+   mostra o progresso de rolagem da página; o rótulo mostra a seção atual
+   e some 1s depois de cada rolagem, reaparecendo na rolagem seguinte
+   (ver initSideToc em js/main.js). Funciona em PC e mobile, pois depende
+   só do evento "scroll", sem exigir mouse.
+   ------------------------------------------------------------------------- */
+.side-toc {
+  position: fixed;
+  top: 50%;
+  right: clamp(0.6rem, 2.4vw, 1.75rem);
+  transform: translateY(-50%);
+  z-index: 450;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  pointer-events: none;
+}
+.side-toc-track {
+  position: relative;
+  width: 4px;
+  height: min(200px, 30vh);
+  border-radius: var(--radius-pill);
+  background: rgba(109, 74, 166, 0.16);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.side-toc-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 100%;
-  transform: scaleX(0);
-  transform-origin: left center;
-  background: linear-gradient(90deg, var(--c-primary), var(--c-accent-2));
+  height: 0%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--c-primary), var(--c-accent-2));
+}
+.side-toc-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--c-primary-dark);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--c-border-strong);
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out);
+}
+.side-toc-label.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+@media (max-width: 640px) {
+  .side-toc-track { height: min(130px, 22vh); }
+  .side-toc-label { font-size: 0.72rem; padding: 0.32rem 0.65rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .side-toc-fill { transition: none; }
+  .side-toc-label { transition: none; }
 }
 
 /* -------------------------------------------------------------------------
@@ -454,7 +525,7 @@ textarea:focus-visible,
   --spot-x: 62%;
   --spot-y: 32%;
 }
-/* Spotlight that softly follows the cursor (position driven by js/main.js initHeroSpotlight) */
+/* Glow ambiente fixo (o brilho que segue o cursor agora é o .cursor-glow, sitewide) */
 .hero::before {
   content: "";
   position: absolute;
@@ -689,8 +760,38 @@ body.tab-hidden .hero-photo,
 body.tab-hidden .hero-blob,
 body.tab-hidden .hero-badge-dot,
 body.tab-hidden .hero-content .accent,
-body.tab-hidden .whatsapp-float::before {
+body.tab-hidden .whatsapp-float::before,
+body.tab-hidden .btn-pulse::before {
   animation-play-state: paused;
+}
+body.tab-hidden .cursor-glow { opacity: 0; }
+
+/* -------------------------------------------------------------------------
+   6B. BLUR ROXO NO PONTEIRO — efeito de brilho que segue o cursor por todo
+   o site (não só na hero), criado dinamicamente em js/main.js
+   (initCursorGlow). Some sozinho em telas sem mouse (touch) e com
+   prefers-reduced-motion.
+   ------------------------------------------------------------------------- */
+.cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 620px;
+  height: 620px;
+  margin-left: -310px;
+  margin-top: -310px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(109, 74, 166, 0.3), rgba(109, 74, 166, 0.1) 45%, transparent 70%);
+  filter: blur(48px);
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
+  will-change: transform;
+}
+.cursor-glow.is-active { opacity: 1; }
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .cursor-glow { display: none; }
 }
 
 /* Floating glass cards, positioned around the photo */
