@@ -480,7 +480,7 @@ textarea:focus-visible,
 }
 
 .hero-content h1 {
-  font-size: var(--fs-3xl);
+  font-size: clamp(1.95rem, 1.55rem + 1.5vw, 2.9rem);
   margin-bottom: var(--sp-sm);
 }
 /* Blur Text: word-by-word blur + fade entrance for the hero heading (inspired by React Bits' Blur Text component, see js/main.js initBlurText) */
@@ -513,6 +513,38 @@ textarea:focus-visible,
   0%, 100% { background-position: 0% center; }
   50% { background-position: 100% center; }
 }
+
+/* Rotating Text: cycles words in place inside the hero heading, letter by
+   letter in a staggered wave for a fluid feel (inspired by React Bits'
+   Rotating Text component, see js/main.js initRotatingText) */
+.rotating-text {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  color: var(--c-primary);
+  font-weight: 800;
+}
+.rotating-text-word {
+  display: inline-flex;
+}
+.rotating-text-char {
+  display: inline-block;
+  transform: translateY(0);
+  opacity: 1;
+  filter: blur(0);
+  transition: transform 620ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 440ms var(--ease-out), filter 440ms var(--ease-out);
+}
+.rotating-text-char.is-leaving {
+  transform: translateY(-115%);
+  opacity: 0;
+  filter: blur(5px);
+}
+.rotating-text-char.is-entering {
+  transform: translateY(115%);
+  opacity: 0;
+  filter: blur(6px);
+}
 .hero-lede {
   font-size: var(--fs-md);
   max-width: 52ch;
@@ -542,6 +574,7 @@ textarea:focus-visible,
 .hero-media {
   position: relative;
   padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+  isolation: isolate;
 }
 
 /* Aurora-style gradient blobs drifting behind the photo (react-bits inspired) */
@@ -591,7 +624,7 @@ textarea:focus-visible,
 .hero-photo-wrap {
   position: relative;
   z-index: 1;
-  width: min(420px, 84%);
+  width: min(470px, 92%);
   margin-inline: auto;
 }
 .hero-photo-glow {
@@ -638,16 +671,36 @@ textarea:focus-visible,
   border-radius: var(--radius-md);
   padding: 0.75rem 0.95rem;
   box-shadow: var(--shadow-lg);
+  /* Own compositor layer: prevents the Chrome-specific flicker/tear where
+     backdrop-filter blur glitches on elements with an animated transform. */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform, opacity;
   animation: hero-card-in var(--dur-slow) var(--ease-out) both;
-  transition: transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out);
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), box-shadow var(--dur-med) var(--ease-out);
+}
+/* Once the entrance animation finishes, drop it entirely — an
+   animation-fill-mode: both keeps overriding `transform` at animation-level
+   priority forever, which is what made the :hover transition below get
+   stuck/jump instead of transitioning smoothly (see js/main.js, listens
+   for animationend and adds this class). Once settled, the base transform
+   also picks up the --magnet-x/--magnet-y offset applied by the magnet
+   (React Bits-inspired) effect in js/main.js. */
+.hero-float-card.is-settled {
+  animation: none;
+  transform: translateZ(0) translate(var(--magnet-x, 0px), var(--magnet-y, 0px));
 }
 .hero-float-card:hover {
-  transform: translateY(-6px) scale(1.04);
+  transform: translateZ(0) translateY(-6px) scale(1.04);
   box-shadow: 0 22px 40px rgba(64, 42, 95, 0.26);
 }
+.hero-float-card.is-settled:hover {
+  transform: translateZ(0) translate(var(--magnet-x, 0px), var(--magnet-y, 0px)) translateY(-6px) scale(1.04);
+}
 @keyframes hero-card-in {
-  from { opacity: 0; transform: translateY(22px) scale(0.92); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateZ(0) translateY(22px) scale(0.92); }
+  to { opacity: 1; transform: translateZ(0) translateY(0) scale(1); }
 }
 .hero-float-card.card-1 { top: 2%; left: -2%; animation-delay: 80ms; }
 .hero-float-card.card-2 { top: 44%; right: -6%; animation-delay: 220ms; }
@@ -677,7 +730,7 @@ textarea:focus-visible,
     width: 100%;
     padding-bottom: clamp(1.5rem, 5vw, 2.5rem);
   }
-  .hero-photo-wrap { width: min(300px, 74%); margin-bottom: var(--sp-sm); }
+  .hero-photo-wrap { width: min(330px, 80%); margin-bottom: var(--sp-sm); }
   .hero-blob { opacity: 0.22; }
   .hero-cards-row {
     display: flex;

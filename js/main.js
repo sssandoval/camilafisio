@@ -151,7 +151,10 @@
     nodes.forEach(function (node) {
       if (node.nodeType === Node.TEXT_NODE) {
         appendWords(node.textContent, frag);
-      } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains("accent")) {
+      } else if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node.classList.contains("accent") || node.classList.contains("rotating-text"))
+      ) {
         node.classList.add("blur-word");
         frag.appendChild(node);
       } else {
@@ -171,6 +174,182 @@
       requestAnimationFrame(function () {
         heading.classList.add("is-blur-in");
       });
+    });
+  })();
+
+  /* -----------------------------------------------------------------
+   * Rotating Text — percorre a sequência de palavras no título da hero
+   * (melhorar -> evoluir -> recuperar) uma única vez, ao carregar a
+   * página, e para na última palavra da sequência. Troca letra por
+   * letra em onda escalonada para uma transição mais fluida, inspirado
+   * no componente "Rotating Text" da lib React Bits, recriado em JS
+   * puro sem React.
+   * --------------------------------------------------------------- */
+  (function initRotatingText() {
+    var containers = Array.prototype.slice.call(
+      document.querySelectorAll(".rotating-text[data-rotating-words]")
+    );
+    if (!containers.length) return;
+
+    var CHAR_STAGGER = 22; // ms entre o início da animação de cada letra
+    var TRANSFORM_DURATION = 620; // deve casar com a transition do CSS
+    var HOLD_DURATION = 3400; // ms que cada palavra fica visível antes de trocar
+
+    containers.forEach(function (container) {
+      var sequence = container
+        .getAttribute("data-rotating-words")
+        .split(",")
+        .map(function (w) { return w.trim(); })
+        .filter(Boolean);
+      if (sequence.length < 2) return;
+
+      var wordEl = container.querySelector(".rotating-text-word");
+      if (!wordEl) return;
+
+      function buildChars(text) {
+        wordEl.innerHTML = "";
+        return text.split("").map(function (ch, i) {
+          var span = document.createElement("span");
+          span.className = "rotating-text-char";
+          span.textContent = ch === " " ? " " : ch;
+          span.style.transitionDelay = (i * CHAR_STAGGER) + "ms";
+          wordEl.appendChild(span);
+          return span;
+        });
+      }
+
+      var index = 0; // posição atual dentro de sequence
+      var lastIndex = sequence.length - 1;
+      var chars = buildChars(sequence[0]);
+
+      function step() {
+        if (index >= lastIndex) return; // já chegou na última palavra: fica parado nela
+        var next = sequence[index + 1];
+
+        chars.forEach(function (c, i) {
+          c.style.transitionDelay = (i * CHAR_STAGGER) + "ms";
+          c.classList.add("is-leaving");
+        });
+
+        var leaveDuration = (chars.length - 1) * CHAR_STAGGER + TRANSFORM_DURATION;
+
+        window.setTimeout(function () {
+          chars = buildChars(next);
+          // Salta para a posição de entrada sem transição, força reflow
+          // e só então reativa a transição — evita que o navegador anime
+          // direto do estado "saindo" para o "entrando" (ver initBlurText
+          // para o mesmo padrão de dupla animação por rAF).
+          chars.forEach(function (c) {
+            c.style.transition = "none";
+            c.classList.add("is-entering");
+          });
+          void wordEl.offsetHeight;
+          chars.forEach(function (c, i) {
+            c.style.transition = "";
+            c.style.transitionDelay = (i * CHAR_STAGGER) + "ms";
+          });
+
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              chars.forEach(function (c) { c.classList.remove("is-entering"); });
+            });
+          });
+
+          index++;
+          if (index < lastIndex) window.setTimeout(step, HOLD_DURATION);
+        }, leaveDuration);
+      }
+
+      window.setTimeout(step, HOLD_DURATION);
+    });
+  })();
+
+  /* -----------------------------------------------------------------
+   * Cards flutuantes da hero — remove a animação de entrada assim que
+   * ela termina. Com animation-fill-mode: both o navegador continua
+   * segurando o `transform` com prioridade de animação para sempre,
+   * o que travava/deixava bugada a transição do :hover (mais visível
+   * no Chrome). Sem a animação ativa, a transição de hover volta a
+   * funcionar normalmente.
+   * --------------------------------------------------------------- */
+  document.querySelectorAll(".hero-float-card").forEach(function (card) {
+    card.addEventListener(
+      "animationend",
+      function (e) {
+        if (e.animationName === "hero-card-in") card.classList.add("is-settled");
+      },
+      { once: true }
+    );
+  });
+
+  /* -----------------------------------------------------------------
+   * Magnet Cards — os 3 cards flutuantes da hero são levemente
+   * atraídos em direção ao cursor quando ele passa perto, e voltam à
+   * posição original quando o cursor se afasta, inspirado no
+   * componente "Magnet" da lib React Bits, recriado em JS puro sem
+   * React. A força é aplicada via custom properties
+   * (--magnet-x/--magnet-y), lidas pelo CSS em .hero-float-card, para
+   * não conflitar com a transição de :hover nem com a animação de
+   * entrada dos cards.
+   * --------------------------------------------------------------- */
+  (function initMagnetHeroCards() {
+    var hero = document.querySelector(".hero");
+    var cards = Array.prototype.slice.call(document.querySelectorAll(".hero-float-card"));
+    if (!hero || !cards.length) return;
+    if (prefersReducedMotion) return;
+    if (window.matchMedia("(hover: none)").matches) return;
+
+    var PAD = 60; // px de raio extra ao redor do card que já reage ao cursor
+    var MAX_PULL = 16; // px de deslocamento máximo
+    var STRENGTH = 0.4; // fração da distância convertida em deslocamento
+
+    var ticking = false;
+    var lastEvent = null;
+
+    function resetCard(card) {
+      card.style.setProperty("--magnet-x", "0px");
+      card.style.setProperty("--magnet-y", "0px");
+    }
+
+    function update() {
+      ticking = false;
+      if (!lastEvent) return;
+
+      cards.forEach(function (card) {
+        var rect = card.getBoundingClientRect();
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        var dx = lastEvent.clientX - cx;
+        var dy = lastEvent.clientY - cy;
+        var reachX = rect.width / 2 + PAD;
+        var reachY = rect.height / 2 + PAD;
+
+        if (Math.abs(dx) < reachX && Math.abs(dy) < reachY) {
+          var x = Math.max(-MAX_PULL, Math.min(MAX_PULL, dx * STRENGTH));
+          var y = Math.max(-MAX_PULL, Math.min(MAX_PULL, dy * STRENGTH));
+          card.style.setProperty("--magnet-x", x.toFixed(2) + "px");
+          card.style.setProperty("--magnet-y", y.toFixed(2) + "px");
+        } else {
+          resetCard(card);
+        }
+      });
+    }
+
+    hero.addEventListener(
+      "mousemove",
+      function (e) {
+        lastEvent = e;
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(update);
+        }
+      },
+      { passive: true }
+    );
+
+    hero.addEventListener("mouseleave", function () {
+      lastEvent = null;
+      cards.forEach(resetCard);
     });
   })();
 
