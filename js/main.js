@@ -70,6 +70,111 @@
   }
 
   /* -----------------------------------------------------------------
+   * Hero Spotlight — glow radial que segue suavemente o cursor
+   * sobre a seção hero (posição em --spot-x / --spot-y, ver CSS).
+   * --------------------------------------------------------------- */
+  (function initHeroSpotlight() {
+    var hero = document.querySelector(".hero");
+    if (!hero) return;
+    if (prefersReducedMotion) return;
+    if (window.matchMedia("(hover: none)").matches) return;
+
+    var target = { sx: 62, sy: 32 };
+    var current = { sx: 62, sy: 32 };
+    var rafId = null;
+
+    function closeEnough(a, b) { return Math.abs(a - b) < 0.01; }
+
+    function render() {
+      current.sx += (target.sx - current.sx) * 0.12;
+      current.sy += (target.sy - current.sy) * 0.12;
+
+      hero.style.setProperty("--spot-x", current.sx.toFixed(1) + "%");
+      hero.style.setProperty("--spot-y", current.sy.toFixed(1) + "%");
+
+      var settled = closeEnough(current.sx, target.sx) && closeEnough(current.sy, target.sy);
+      rafId = settled ? null : requestAnimationFrame(render);
+    }
+
+    function schedule() {
+      if (!rafId) rafId = requestAnimationFrame(render);
+    }
+
+    function onMove(e) {
+      var rect = hero.getBoundingClientRect();
+      var relX = Math.max(-0.5, Math.min(0.5, (e.clientX - rect.left) / rect.width - 0.5));
+      var relY = Math.max(-0.5, Math.min(0.5, (e.clientY - rect.top) / rect.height - 0.5));
+
+      target.sx = (relX + 0.5) * 100;
+      target.sy = (relY + 0.5) * 100;
+      schedule();
+    }
+
+    function onLeave() {
+      target.sx = 62;
+      target.sy = 32;
+      schedule();
+    }
+
+    hero.addEventListener("mousemove", onMove);
+    hero.addEventListener("mouseleave", onLeave);
+  })();
+
+  /* -----------------------------------------------------------------
+   * Blur Text — título da hero surge palavra por palavra, do desfoque
+   * e opacidade zero até nítido no lugar (inspirado no componente
+   * "Blur Text" da lib React Bits, recriado em JS puro sem React).
+   * --------------------------------------------------------------- */
+  (function initBlurText() {
+    var heading = document.querySelector(".hero-content h1");
+    if (!heading) return;
+    if (prefersReducedMotion) return;
+
+    var nodes = Array.prototype.slice.call(heading.childNodes);
+    var frag = document.createDocumentFragment();
+
+    function appendWords(text, target) {
+      var parts = text.split(/(\s+)/);
+      parts.forEach(function (part) {
+        if (part === "") return;
+        if (/^\s+$/.test(part)) {
+          target.appendChild(document.createTextNode(part));
+        } else {
+          var span = document.createElement("span");
+          span.className = "blur-word";
+          span.textContent = part;
+          target.appendChild(span);
+        }
+      });
+    }
+
+    nodes.forEach(function (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        appendWords(node.textContent, frag);
+      } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains("accent")) {
+        node.classList.add("blur-word");
+        frag.appendChild(node);
+      } else {
+        frag.appendChild(node);
+      }
+    });
+
+    heading.innerHTML = "";
+    heading.appendChild(frag);
+
+    var words = heading.querySelectorAll(".blur-word");
+    words.forEach(function (word, i) {
+      word.style.transitionDelay = (i * 45) + "ms";
+    });
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        heading.classList.add("is-blur-in");
+      });
+    });
+  })();
+
+  /* -----------------------------------------------------------------
    * Scroll-reveal (IntersectionObserver)
    * --------------------------------------------------------------- */
   var revealTargets = document.querySelectorAll(
