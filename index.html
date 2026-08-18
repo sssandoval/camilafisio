@@ -29,10 +29,13 @@
 <meta name="twitter:image" content="https://www.SEUDOMINIO.com.br/assets/img/og-cover.jpg">
 
 <!-- Favicon -->
-<link rel="icon" type="image/svg+xml" href="./assets/logo.png">
+<link rel="icon" type="image/png" href="./assets/logo.png">
 <link rel="manifest" href="/site.webmanifest">
 
 <link rel="preload" as="image" href="./img/logo.webp">
+<link rel="preload" as="image" href="./img/dra_camila.webp" imagesrcset="./img/dra_camila-700w.webp 700w, ./img/dra_camila.webp 1086w" imagesizes="(max-width: 900px) 320px, 420px" fetchpriority="high">
+<link rel="preload" as="script" href="/js/vendor/gsap.min.js">
+<link rel="preload" as="script" href="/js/vendor/ScrollTrigger.min.js">
 <link rel="stylesheet" href="/css/style.css">
 
 <!-- JSON-LD: Local Business / Medical Business -->
@@ -82,6 +85,7 @@
 </script>
 </head>
 <body>
+<div class="scroll-progress" aria-hidden="true"><span class="scroll-progress-bar" id="scroll-progress-bar"></span></div>
 <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo principal</a>
 
 <!-- =====================================================================
@@ -221,15 +225,12 @@
         <span class="eyebrow">Sobre a profissional</span>
         <h2>Dra. Camila Sandoval Maioli, fisioterapeuta em São José do Rio Preto</h2>
         <p>
-   Olá, eu sou a Dra. Camila Sandoval Maioli, fisioterapeuta.
+   Sou a Dra. Camila Sandoval Maioli, fisioterapeuta, e ofereço atendimento individualizado, humanizado e personalizado às necessidades de cada paciente.
 
-Meu trabalho é voltado para oferecer um atendimento fisioterapêutico individualizado, humanizado e próximo, respeitando as necessidades e os objetivos de cada paciente.
+Meu destaque é a **Fisioterapia Home Care**, especialmente na reabilitação de idosos, trabalhando mobilidade, força, equilíbrio, funcionalidade e independência para promover mais segurança e qualidade de vida.
 
-Um dos principais diferenciais do meu atendimento é o Fisioterapia Home Care, especialmente voltado para a reabilitação e acompanhamento de pessoas idosas. Levar a fisioterapia até a casa do paciente proporciona mais conforto, praticidade e segurança, permitindo que o tratamento seja realizado dentro da realidade e da rotina de cada pessoa.
+Sou graduada em Fisioterapia pela UNIRP e atualmente me especializo em Fisioterapia Traumato-Ortopédica e Esportiva. Minha formação inclui conhecimentos em avaliação funcional, biomecânica, fisiologia do exercício e técnicas como liberação miofascial, bandagem elástica e Dry Needling.
 
-Na reabilitação de idosos, o objetivo é trabalhar de forma personalizada aspectos como mobilidade, força, equilíbrio, funcionalidade e independência, contribuindo para que o paciente tenha mais segurança e autonomia em suas atividades do dia a dia.
-
-Sou graduada em Fisioterapia pelo Centro Universitário de Rio Preto (UNIRP) e atualmente estou em especialização em Fisioterapia Traumato-Ortopédica e Esportiva. Minha formação complementar inclui conhecimentos em fisiologia do exercício, biomecânica, anatomia palpatória, avaliação funcional e raciocínio clínico, além de técnicas como liberação miofascial, bandagem elástica e Dry Needling.
         </p>
 
         <h3>
@@ -599,6 +600,8 @@ Cuidar do movimento é também cuidar da independência, da autoestima e da qual
   </figure>
 </div>
 
+<script src="/js/vendor/gsap.min.js" defer></script>
+<script src="/js/vendor/ScrollTrigger.min.js" defer></script>
 <script src="/js/main.js" defer></script>
 </body>
 </html>

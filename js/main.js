@@ -15,16 +15,44 @@
   if (anoEl) anoEl.textContent = String(new Date().getFullYear());
 
   /* -----------------------------------------------------------------
-   * Header: sombra ao rolar
+   * Barra de progresso de leitura + sombra do header ao rolar.
+   * Vanilla JS (sem depender do GSAP) para funcionar sempre, em PC e
+   * mobile, mesmo se os scripts do GSAP falharem ao carregar.
+   * Os dois efeitos escutam o mesmo evento "scroll", então são
+   * atualizados juntos num único rAF por frame em vez de dois
+   * listeners/leituras de scrollY independentes.
    * --------------------------------------------------------------- */
-  var header = document.querySelector(".site-header");
-  if (header) {
-    var onScrollHeader = function () {
-      header.classList.toggle("is-scrolled", window.scrollY > 8);
-    };
-    onScrollHeader();
-    window.addEventListener("scroll", onScrollHeader, { passive: true });
-  }
+  (function initScrollEffects() {
+    var bar = document.getElementById("scroll-progress-bar");
+    var header = document.querySelector(".site-header");
+    if (!bar && !header) return;
+    var ticking = false;
+
+    function update() {
+      ticking = false;
+      if (bar) {
+        var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        var pct = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0;
+        bar.style.transform = "scaleX(" + pct.toFixed(4) + ")";
+      }
+      if (header) {
+        header.classList.toggle("is-scrolled", window.scrollY > 8);
+      }
+    }
+
+    update();
+    window.addEventListener(
+      "scroll",
+      function () {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(update);
+        }
+      },
+      { passive: true }
+    );
+    window.addEventListener("resize", update);
+  })();
 
   /* -----------------------------------------------------------------
    * Menu mobile
@@ -116,8 +144,23 @@
       schedule();
     }
 
-    hero.addEventListener("mousemove", onMove);
-    hero.addEventListener("mouseleave", onLeave);
+    hero.addEventListener("mousemove", onMove, { passive: true });
+    hero.addEventListener("mouseleave", onLeave, { passive: true });
+  })();
+
+  /* -----------------------------------------------------------------
+   * Pausa as animações CSS contínuas (badge, blob, foto, pulso do
+   * WhatsApp) quando a aba fica em segundo plano, para não gastar
+   * CPU/GPU com algo que não está sendo visto. Não afeta a aparência
+   * enquanto a aba está visível.
+   * --------------------------------------------------------------- */
+  (function initPauseWhenHidden() {
+    if (prefersReducedMotion) return;
+    function apply() {
+      document.body.classList.toggle("tab-hidden", document.hidden);
+    }
+    document.addEventListener("visibilitychange", apply);
+    apply();
   })();
 
   /* -----------------------------------------------------------------
@@ -193,7 +236,7 @@
 
     var CHAR_STAGGER = 22; // ms entre o início da animação de cada letra
     var TRANSFORM_DURATION = 620; // deve casar com a transition do CSS
-    var HOLD_DURATION = 3400; // ms que cada palavra fica visível antes de trocar
+    var HOLD_DURATION = 1600; // ms que cada palavra fica visível antes de trocar
 
     containers.forEach(function (container) {
       var sequence = container
@@ -354,28 +397,137 @@
   })();
 
   /* -----------------------------------------------------------------
-   * Scroll-reveal (IntersectionObserver)
+   * Scroll animations — GSAP + ScrollTrigger.
+   * Revela as seções em cascata (stagger) ao entrarem na tela e aplica
+   * um parallax sutil na foto do hero durante a rolagem. Os alvos do
+   * reveal (cards, itens, mídia) não têm nenhuma animação CSS própria
+   * competindo por `transform`, então o GSAP pode controlá-los direto
+   * via inline style sem o bug de prioridade descrito nos comentários
+   * de .hero-float-card acima. Sem GSAP/ScrollTrigger disponíveis (ex.:
+   * falha de carregamento) ou com prefers-reduced-motion, cai para o
+   * reveal simples via IntersectionObserver, sem parallax.
    * --------------------------------------------------------------- */
-  var revealTargets = document.querySelectorAll(
-    ".specialty-card, .diff-item, .testimonial-card, .gallery-item, .about-media, .about-content, .contact-card"
-  );
+  var hasGsapScroll = !prefersReducedMotion && window.gsap && window.ScrollTrigger;
 
-  if (!prefersReducedMotion && "IntersectionObserver" in window && revealTargets.length) {
-    revealTargets.forEach(function (el) { el.setAttribute("data-reveal", ""); });
+  if (hasGsapScroll) {
+    gsap.registerPlugin(ScrollTrigger);
 
-    var revealObserver = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            revealObserver.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+    // .specialty-card, .contact-card e .gallery-item img já têm sua própria
+    // `transition: transform ...` em CSS (para o :hover). Se o GSAP anima o
+    // mesmo `transform` por cima com essa transition ainda ativa, o CSS
+    // tenta "correr atrás" de cada frame do tween e o movimento fica
+    // pastoso. Por isso ela é suspensa só durante o tween de entrada e
+    // devolvida ao elemento logo depois (mesma ideia do ajuste já feito
+    // para .hero-float-card, ver comentário acima).
+    function suspendCssTransition(els) {
+      els.forEach(function (el) { el.style.transition = "none"; });
+    }
+    function restoreCssTransition(els) {
+      els.forEach(function (el) { el.style.removeProperty("transition"); });
+    }
+
+    var staggerGroups = [
+      ".specialty-grid .specialty-card",
+      ".gallery-grid .gallery-item",
+      ".diff-grid .diff-item",
+      ".testimonial-grid .testimonial-card",
+    ];
+    var singleReveals = [".about-media", ".about-content", ".contact-card"];
+
+    staggerGroups.forEach(function (selector) {
+      var items = gsap.utils.toArray(selector);
+      if (!items.length) return;
+      gsap.set(items, { autoAlpha: 0, y: 32 });
+      ScrollTrigger.batch(items, {
+        start: "top 88%",
+        once: true,
+        onEnter: function (batch) {
+          suspendCssTransition(batch);
+          gsap.to(batch, {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.8,
+            ease: "power3.out",
+            stagger: 0.12,
+            onComplete: function () { restoreCssTransition(batch); },
+          });
+        },
+      });
+    });
+
+    singleReveals.forEach(function (selector) {
+      var el = document.querySelector(selector);
+      if (!el) return;
+      gsap.set(el, { autoAlpha: 0, y: 32 });
+      gsap.to(el, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.9,
+        ease: "power3.out",
+        onStart: function () { suspendCssTransition([el]); },
+        onComplete: function () { restoreCssTransition([el]); },
+        scrollTrigger: { trigger: el, start: "top 88%", once: true },
+      });
+    });
+
+    // Parallax sutil: a foto do hero se desloca um pouco mais devagar
+    // que o resto da página enquanto o usuário sai da seção inicial.
+    // Ativo em PC e mobile; no mobile o deslocamento é menor porque a
+    // seção inicial é mais curta na tela.
+    var heroPhotoWrap = document.querySelector(".hero-photo-wrap");
+    if (heroPhotoWrap) {
+      var isMobileViewport = window.matchMedia("(max-width: 900px)").matches;
+      gsap.to(heroPhotoWrap, {
+        yPercent: isMobileViewport ? -6 : -10,
+        ease: "none",
+        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: 0.6 },
+      });
+    }
+
+    // Zoom sutil nas fotos da galeria: a imagem entra levemente
+    // ampliada e assenta em escala normal ao aparecer na tela.
+    var galleryImages = gsap.utils.toArray(".gallery-item img");
+    if (galleryImages.length) {
+      gsap.set(galleryImages, { scale: 1.12 });
+      ScrollTrigger.batch(galleryImages, {
+        start: "top 92%",
+        once: true,
+        onEnter: function (batch) {
+          suspendCssTransition(batch);
+          gsap.to(batch, {
+            scale: 1,
+            duration: 1,
+            ease: "power2.out",
+            stagger: 0.1,
+            onComplete: function () { restoreCssTransition(batch); },
+          });
+        },
+      });
+    }
+
+    window.addEventListener("load", function () { ScrollTrigger.refresh(); });
+  } else if (!prefersReducedMotion && "IntersectionObserver" in window) {
+    var revealTargets = document.querySelectorAll(
+      ".specialty-card, .diff-item, .testimonial-card, .gallery-item, .about-media, .about-content, .contact-card"
     );
 
-    revealTargets.forEach(function (el) { revealObserver.observe(el); });
+    if (revealTargets.length) {
+      revealTargets.forEach(function (el) { el.setAttribute("data-reveal", ""); });
+
+      var revealObserver = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+      );
+
+      revealTargets.forEach(function (el) { revealObserver.observe(el); });
+    }
   }
 
   /* -----------------------------------------------------------------
